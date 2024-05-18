@@ -17,8 +17,6 @@ $id_client = $_COOKIE['id_user'];
 $select_requests = mysqli_query($connect,"SELECT * FROM `requests` WHERE `id_client` = '$id_client'");
 $select_requests = mysqli_fetch_all($select_requests);
 
-var_dump($select_requests);
-
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -53,10 +51,46 @@ var_dump($select_requests);
             $select_agency = mysqli_query($connect, "SELECT `name_agency`, `services` FROM `funeral_agencies` WHERE `id`='$id_agency'");
             $select_agency = mysqli_fetch_assoc($select_agency);
 
+            $ids = explode(',', $request[3]);
+
+            $conditions = array_map(function($id) {
+                return "JSON_CONTAINS(JSON_EXTRACT(`services`, '$.additional_services[*].id'), '$id')";
+            }, $ids);
+
+            $whereClause = implode(' OR ', $conditions);
+
+            $query = "SELECT `services` FROM `funeral_agencies` WHERE `id`='$id_agency' AND ($whereClause)";
+
+            $result = mysqli_query($connect, $query);
+
+            $selected_services = [];
+
+            if ($result) {
+                while ($row = mysqli_fetch_assoc($result)) {
+                    $services = json_decode($row['services'], true);
+                    foreach ($services['additional_services'] as $service) {
+                        if (in_array($service['id'], $ids)) {
+                            $selected_services[] = $service;
+                        }
+                    }
+                }
+            } else {
+                echo "Ошибка выполнения запроса: " . mysqli_error($connect);
+            }
+
             ?>
             <ul>
                 <li>
-                    <span>Название агентства - <?= $select_agency['name_agency'] ?></span>
+                    <span>Название агентства - <?= htmlspecialchars($select_agency['name_agency']) ?></span>
+                    <br>
+                    <span>
+                        Выбранные услуги:
+                        <ul>
+                            <?php foreach ($selected_services as $service): ?>
+                                <li><?= htmlspecialchars($service['name']) ?> - <?= htmlspecialchars($service['price']) ?> руб.</li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </span>
                 </li>
             </ul>
         <?php } ?>
